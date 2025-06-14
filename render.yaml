@@ -1,11 +1,13 @@
+# render.yaml
 services:
   - type: web
-    name: baby-cry-detector
+    name: baby-cry-sense-tool # आपके नए प्रोजेक्ट का नाम
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn app:app"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.18 # You can specify your preferred Python version here
+        value: 3.9.18 # इसे 3.10.13 या 3.11.8 पर भी ट्राई कर सकते हैं
     autoDeploy: true
     pullRequestPreviewsEnabled: false
+    rootDir: "" # इसे खाली रहने दें, क्योंकि आपकी फाइलें रूट में हैं
