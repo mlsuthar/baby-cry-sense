@@ -1,0 +1,13 @@
+app = "your-unique-app-name"  # अपना यूनिक ऐप नाम दें (छोटा और सिंपल)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+
+[env]
+  FLY_VM_MEMORY = "1024"  # 1GB मेमोरी (ML मॉडल के लिए जरूरी)
