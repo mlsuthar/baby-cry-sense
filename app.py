@@ -1,37 +1,78 @@
-from flask import Flask, request, jsonify
-import librosa
+import os
 import numpy as np
-import tensorflow as tf  # Replace with your ML library
+import librosa
+import joblib
+import tensorflow as tf
+from flask import Flask, request, render_template_string
 
+# ✅ Load Model & Label Encoder
+model = tf.keras.models.load_model("best_model.h5")
+label_encoder = joblib.load("label_encoder.pkl")
+
+# ✅ Flask App Setup
 app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Load your ML model
-model = tf.keras.models.load_model('model/baby_cry_model.h5')
+# ✅ Feature Extraction Function
+def extract_features(file_path, duration=4, sr=22050, n_mels=128):
+    samples = sr * duration
+    y, sr = librosa.load(file_path, sr=sr)
+    if len(y) < samples:
+        y = np.pad(y, (0, samples - len(y)))
+    else:
+        y = y[:samples]
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels)
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    mel_db = mel_db / np.max(np.abs(mel_db))  # Normalize
+    return mel_db.astype(np.float32)
 
-@app.route('/predict', methods=['POST'])
+# ✅ HTML Template
+HTML_TEMPLATE = '''
+<!doctype html>
+<title>Baby Cry Predictor</title>
+<h2>Upload a Baby Cry .wav file</h2>
+<form method=post enctype=multipart/form-data>
+  <input type=file name=file accept=".wav">
+  <input type=submit value=Predict>
+</form>
+
+{% if predictions %}
+  <h3>🔊 Top 3 Predictions:</h3>
+  <ul>
+    {% for label, prob in predictions.items() %}
+      <li><strong>{{ label }}</strong>: {{ prob }}%</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+'''
+
+# ✅ Routes
+@app.route('/', methods=['GET', 'POST'])
 def predict():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "Empty filename"}), 400
-    
-    if file and file.filename.endswith('.wav'):
-        # Process .wav file (extract features)
-        audio, sr = librosa.load(file, sr=22050)
-        mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=13)
-        mfccs_processed = np.mean(mfccs.T, axis=0)
-        mfccs_processed = mfccs_processed.reshape(1, -1)
+    predictions = None
+    if request.method == 'POST':
+        file = request.files.get('file')
+        if file and file.filename.endswith('.wav'):
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(filepath)
 
-        # Predict using ML model
-        prediction = model.predict(mfccs_processed)
-        classes = ["hungry", "sleepy", "bellypain"]
-        result = classes[np.argmax(prediction)]
+            features = extract_features(filepath)
+            features = np.expand_dims(features, axis=-1)  # (128, time, 1)
+            features = np.expand_dims(features, axis=0)   # (1, 128, time, 1)
 
-        return jsonify({"prediction": result})
-    
-    return jsonify({"error": "Invalid file format"}), 400
+            preds = model.predict(features)[0]  # Get first element
 
+            # Top 3 predictions
+            top_indices = preds.argsort()[-3:][::-1]
+            labels = label_encoder.inverse_transform(top_indices)
+            probs = preds[top_indices] * 100  # Convert to %
+
+            predictions = {label: round(prob, 2) for label, prob in zip(labels, probs)}
+
+    return render_template_string(HTML_TEMPLATE, predictions=predictions)
+
+# ✅ Run App
 if __name__ == '__main__':
     app.run(debug=True)
