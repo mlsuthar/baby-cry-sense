@@ -1,9 +1,7 @@
-pip
-setuptools
-wheel
 Flask==2.3.3
-numpy==1.24.3 # === इसे बदलें! TensorFlow 2.13.0 के लिए 1.24.3 या 1.23.5 जैसे संगत वर्ज़न का उपयोग करें ===
+numpy==1.23.5 # TensorFlow 2.13.0 के साथ संगत एक सिद्ध वर्ज़न।
 librosa==0.9.2
 tensorflow==2.13.0
 joblib==1.2.0
 gunicorn==20.1.0
+scikit-learn
